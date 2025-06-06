@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Emparejamiento de Imágenes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4e73df;
+            --success-color: #1cc88a;
+            --danger-color: #e74a3b;
+            --light-bg: #f8f9fc;
+        }
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: var(--light-bg);
+        }
+        
+        .game-container {
+            max-width: 900px;
+            margin: 2rem auto;
+            background: white;
+            border-radius: 0.35rem;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+            overflow: hidden;
+        }
+        
+        .game-header {
+            background: var(--primary-color);
+            color: white;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .game-body {
+            padding: 2rem;
+        }
+        
+        .images-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .source-images, .target-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            min-height: 150px;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+        }
+        
+        .image-card {
+            width: 120px;
+            height: 120px;
+            border-radius: 0.25rem;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        
+        .image-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        
+        .image-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .image-card.matched {
+            opacity: 0.6;
+            cursor: default;
+            transform: scale(0.95);
+        }
+        
+        .image-card.selected {
+            border: 3px solid var(--primary-color);
+        }
+        
+        .image-card.correct {
+            border: 3px solid var(--success-color);
+        }
+        
+        .image-card.incorrect {
+            border: 3px solid var(--danger-color);
+        }
+        
+        .stats-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .feedback {
+            text-align: center;
+            min-height: 2rem;
+            margin: 1rem 0;
+            font-weight: bold;
+        }
+        
+        .success-feedback {
+            color: var(--success-color);
+        }
+        
+        .error-feedback {
+            color: var(--danger-color);
+        }
+        
+        .drag-over {
+            background-color: rgba(78, 115, 223, 0.1);
+            border: 2px dashed var(--primary-color);
+        }
+        
+        @media (max-width: 768px) {
+            .image-card {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .stats-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h1>Emparejamiento de Imágenes</h1>
+            <p class="mb-0">Arrastra las imágenes de la izquierda a su correspondiente en la derecha</p>
+        </div>
+        
+        <div class="game-body">
+            <div class="stats-container">
+                <div class="stat-item">
+                    <div class="stat-label">Parejas</div>
+                    <div class="stat-value"><span id="matched-count">0</span>/<span id="total-pairs">0</span></div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Intentos</div>
+                    <div class="stat-value" id="attempts">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Tiempo</div>
+                    <div class="stat-value" id="timer">00:00</div>
+                </div>
+            </div>
+            
+            <div class="feedback" id="feedback"></div>
+            
+            <div class="images-container">
+                <div class="source-images w-100 mb-4" id="source-container">
+                    <h5 class="w-100 text-center mb-3">Imágenes para emparejar</h5>
+                    <!-- Las imágenes de origen se insertarán aquí -->
+                </div>
+                
+                <div class="target-images w-100" id="target-container">
+                    <h5 class="w-100 text-center mb-3">Destino</h5>
+                    <!-- Las imágenes de destino se insertarán aquí -->
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <button id="check-btn" class="btn btn-primary me-2">Comprobar</button>
+                <button id="reset-btn" class="btn btn-outline-secondary">Reiniciar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Configuración del juego
+            const gameConfig = {
+                pairs: [
+                    {
+                        source: 'imagenes/manzana.png',
+                        target: 'imagenes/manzana2.png',
+                        relation: 'Manzana Roja'
+                    },
+                    {
+                        source: 'imagenes/pera.png',
+                        target: 'imagenes/pera2.png',
+                        relation: 'Los gatos comen pescado'
+                    },
+                    {
+                        source: 'https://via.placeholder.com/150/1cc88a/ffffff?text=Árbol',
+                        target: 'https://via.placeholder.com/150/e74a3b/ffffff?text=Manzana',
+                        relation: 'Los manzanos producen manzanas'
+                    },
+                    {
+                        source: 'https://via.placeholder.com/150/f6c23e/ffffff?text=Sol',
+                        target: 'https://via.placeholder.com/150/858796/ffffff?text=Girasol',
+                        relation: 'Los girasoles siguen al sol'
+                    }
+                ],
+                timerEnabled: true,
+                maxAttempts: null // null para intentos ilimitados
+            };
+            
+            // Estado del juego
+            let gameState = {
+                matchedPairs: 0,
+                attempts: 0,
+                seconds: 0,
+                timerInterval: null,
+                selectedCard: null,
+                matches: {}
+            };
+            
+            // Elementos del DOM
+            const domElements = {
+                sourceContainer: document.getElementById('source-container'),
+                targetContainer: document.getElementById('target-container'),
+                matchedCount: document.getElementById('matched-count'),
+                totalPairs: document.getElementById('total-pairs'),
+                attempts: document.getElementById('attempts'),
+                timer: document.getElementById('timer'),
+                feedback: document.getElementById('feedback'),
+                checkBtn: document.getElementById('check-btn'),
+                resetBtn: document.getElementById('reset-btn')
+            };
+            
+            // Inicializar el juego
+            function initGame() {
+                // Reiniciar el estado del juego
+                gameState = {
+                    matchedPairs: 0,
+                    attempts: 0,
+                    seconds: 0,
+                    timerInterval: null,
+                    selectedCard: null,
+                    matches: {}
+                };
+                
+                // Actualizar la UI
+                updateStats();
+                clearFeedback();
+                
+                // Mezclar y mostrar las imágenes
+                shuffleAndDisplayImages();
+                
+                // Iniciar el temporizador si está habilitado
+                if (gameConfig.timerEnabled && !gameState.timerInterval) {
+                    startTimer();
+                }
+            }
+            
+            // Mezclar y mostrar las imágenes
+            function shuffleAndDisplayImages() {
+                // Limpiar los contenedores
+                domElements.sourceContainer.innerHTML = '<h5 class="w-100 text-center mb-3">Imágenes para emparejar</h5>';
+                domElements.targetContainer.innerHTML = '<h5 class="w-100 text-center mb-3">Destino</h5>';
+                
+                // Mezclar los pares
+                const shuffledPairs = [...gameConfig.pairs].sort(() => Math.random() - 0.5);
+                
+                // Mostrar el número total de pares
+                domElements.totalPairs.textContent = shuffledPairs.length;
+                
+                // Crear las imágenes de origen (arrastrables)
+                shuffledPairs.forEach((pair, index) => {
+                    const sourceCard = createImageCard(pair.source, 'source', index);
+                    domElements.sourceContainer.appendChild(sourceCard);
+                    
+                    // Crear las imágenes de destino (destino)
+                    const targetCard = createImageCard(pair.target, 'target', index);
+                    domElements.targetContainer.appendChild(targetCard);
+                });
+            }
+            
+            // Crear una tarjeta de imagen
+            function createImageCard(imageUrl, type, pairIndex) {
+                const card = document.createElement('div');
+                card.className = 'image-card';
+                card.dataset.type = type;
+                card.dataset.pairIndex = pairIndex;
+                
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.draggable = type === 'source';
+                img.alt = `Imagen ${type} ${pairIndex}`;
+                
+                card.appendChild(img);
+                
+                // Configurar eventos según el tipo
+                if (type === 'source') {
+                    setupSourceCard(card);
+                } else {
+                    setupTargetCard(card);
+                }
+                
+                return card;
+            }
+            
+            // Configurar una tarjeta de origen (arrastrable)
+            function setupSourceCard(card) {
+                // Eventos de arrastrar
+                card.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', this.dataset.pairIndex);
+                    this.classList.add('selected');
+                    setTimeout(() => this.classList.add('invisible'), 0);
+                });
+                
+                card.addEventListener('dragend', function() {
+                    this.classList.remove('selected', 'invisible');
+                });
+                
+                // Evento de clic alternativo
+                card.addEventListener('click', function() {
+                    if (this.classList.contains('matched')) return;
+                    
+                    if (gameState.selectedCard) {
+                        // Ya hay una tarjeta seleccionada, intentar emparejar
+                        attemptMatch(this);
+                    } else {
+                        // Seleccionar esta tarjeta
+                        clearSelection();
+                        this.classList.add('selected');
+                        gameState.selectedCard = this;
+                    }
+                });
+            }
+            
+            // Configurar una tarjeta de destino
+            function setupTargetCard(card) {
+                // Eventos de soltar
+                card.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    this.classList.add('drag-over');
+                });
+                
+                card.addEventListener('dragleave', function() {
+                    this.classList.remove('drag-over');
+                });
+                
+                card.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('drag-over');
+                    
+                    const sourceIndex = e.dataTransfer.getData('text/plain');
+                    const sourceCard = document.querySelector(`.image-card[data-type="source"][data-pair-index="${sourceIndex}"]`);
+                    
+                    if (sourceCard) {
+                        attemptMatch(sourceCard, this);
+                    }
+                });
+                
+                // Evento de clic alternativo
+                card.addEventListener('click', function() {
+                    if (!gameState.selectedCard || this.classList.contains('matched')) return;
+                    
+                    // Intentar emparejar con la tarjeta seleccionada
+                    attemptMatch(gameState.selectedCard, this);
+                });
+            }
+            
+            // Intentar emparejar dos tarjetas
+            function attemptMatch(sourceCard, targetCard = null) {
+                // Si no se proporciona targetCard, buscar una target no emparejada
+                if (!targetCard) {
+                    const targetCards = document.querySelectorAll('.image-card[data-type="target"]:not(.matched)');
+                    if (targetCards.length === 1) {
+                        targetCard = targetCards[0];
+                    } else {
+                        // No se puede determinar el destino automáticamente
+                        clearSelection();
+                        return;
+                    }
+                }
+                
+                const sourceIndex = sourceCard.dataset.pairIndex;
+                const targetIndex = targetCard.dataset.pairIndex;
+                
+                // Incrementar intentos
+                gameState.attempts++;
+                updateStats();
+                
+                // Comprobar si es un emparejamiento correcto
+                if (sourceIndex === targetIndex) {
+                    // Emparejamiento correcto
+                    sourceCard.classList.add('matched', 'correct');
+                    targetCard.classList.add('matched', 'correct');
+                    
+                    gameState.matchedPairs++;
+                    gameState.matches[sourceIndex] = true;
+                    
+                    showFeedback(`¡Correcto! ${gameConfig.pairs[sourceIndex].relation}`, 'success');
+                    
+                    // Comprobar si el juego ha terminado
+                    if (gameState.matchedPairs === gameConfig.pairs.length) {
+                        endGame();
+                    }
+                } else {
+                    // Emparejamiento incorrecto
+                    sourceCard.classList.add('incorrect');
+                    targetCard.classList.add('incorrect');
+                    
+                    showFeedback('Inténtalo de nuevo', 'error');
+                    
+                    // Quitar las clases después de un tiempo
+                    setTimeout(() => {
+                        sourceCard.classList.remove('incorrect');
+                        targetCard.classList.remove('incorrect');
+                    }, 1000);
+                }
+                
+                // Limpiar selección
+                clearSelection();
+                updateStats();
+            }
+            
+            // Limpiar la selección actual
+            function clearSelection() {
+                if (gameState.selectedCard) {
+                    gameState.selectedCard.classList.remove('selected');
+                    gameState.selectedCard = null;
+                }
+            }
+            
+            // Actualizar las estadísticas en la UI
+            function updateStats() {
+                domElements.matchedCount.textContent = gameState.matchedPairs;
+                domElements.attempts.textContent = gameState.attempts;
+            }
+            
+            // Mostrar retroalimentación
+            function showFeedback(message, type) {
+                domElements.feedback.textContent = message;
+                domElements.feedback.className = 'feedback';
+                domElements.feedback.classList.add(type === 'success' ? 'success-feedback' : 'error-feedback');
+            }
+            
+            // Limpiar retroalimentación
+            function clearFeedback() {
+                domElements.feedback.textContent = '';
+                domElements.feedback.className = 'feedback';
+            }
+            
+            // Iniciar el temporizador
+            function startTimer() {
+                if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+                
+                gameState.timerInterval = setInterval(() => {
+                    gameState.seconds++;
+                    const minutes = Math.floor(gameState.seconds / 60).toString().padStart(2, '0');
+                    const seconds = (gameState.seconds % 60).toString().padStart(2, '0');
+                    domElements.timer.textContent = `${minutes}:${seconds}`;
+                }, 1000);
+            }
+            
+            // Finalizar el juego
+            function endGame() {
+                if (gameState.timerInterval) {
+                    clearInterval(gameState.timerInterval);
+                    gameState.timerInterval = null;
+                }
+                
+                const timeSpent = domElements.timer.textContent;
+                showFeedback(`¡Felicidades! Completaste el juego en ${timeSpent} con ${gameState.attempts} intentos.`, 'success');
+            }
+            
+            // Evento para el botón de comprobar
+            domElements.checkBtn.addEventListener('click', function() {
+                // En este diseño, el botón "Comprobar" podría usarse para mostrar las respuestas correctas
+                // o para verificar emparejamientos en un modo diferente de juego
+                alert('En este modo de juego, los emparejamientos se verifican automáticamente.');
+            });
+            
+            // Evento para el botón de reiniciar
+            domElements.resetBtn.addEventListener('click', initGame);
+            
+            // Inicializar el juego al cargar
+            initGame();
+        });
+    </script>
+</body>
+</html>
